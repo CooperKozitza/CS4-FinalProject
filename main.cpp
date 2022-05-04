@@ -42,7 +42,7 @@ class Table
         sf::RectangleShape field;
         sf::RectangleShape edge;
 
-        const double frictionCoef = 0.01; // friction applied to moving objects on the feild
+        const double frictionCoef = 0.1; // friction applied to moving objects on the feild
 
     public:
         class Cue
@@ -117,6 +117,9 @@ int main()
     Table table(sf::Vector2f(400, 200));
     table.init();
 
+    bool hold = false;
+    sf::Vector2i clickPosition;
+
     while (window.isOpen())
     {
         sf::Event event;
@@ -125,10 +128,18 @@ int main()
             if (event.type == sf::Event::Closed) window.close();
 
             if (event.type == sf::Event::MouseButtonPressed) {
-                table.cue.pullBack(15);
+                hold = true;
+                clickPosition = sf::Mouse::getPosition(window); 
+            }
+
+            if (event.type == sf::Event::MouseButtonReleased) {
+                hold = false;
                 table.cue.release();
             }
         }
+
+        if (hold)
+            table.cue.pullBack(sqrt(pow(clickPosition.x - sf::Mouse::getPosition(window).x, 2) + pow(clickPosition.y - sf::Mouse::getPosition(window).y, 2)));
 
         table.update(sf::Mouse::getPosition(window));
 
@@ -177,7 +188,7 @@ void Table::Cue::release()
 {
     released = true;
     if (power > 10) {
-        cueBall.hit(angle, power);
+        cueBall.hit(90 - angle, power);
     }
 }
 
@@ -186,7 +197,7 @@ void Table::Cue::update(sf::Vector2i mousePosition)
     if (visible) {
         angle = atan2(cueBall.getPosition().y - mousePosition.y, cueBall.getPosition().x - mousePosition.x) * 180 / M_PI;
 
-        stick.setPosition(sf::Vector2f(cueBall.getPosition().x + cueBall.getRadius(), cueBall.getPosition().y + cueBall.getRadius()));
+        stick.setPosition(sf::Vector2f(cueBall.getPosition().x + cueBall.getRadius() + (power + 8) * sin((270 - angle) * M_PI / 180), cueBall.getPosition().y  + cueBall.getRadius() + (power + 8) * cos((270 - angle) * M_PI / 180)));
         tip.setPosition(stick.getPosition());
 
         stick.setRotation(angle);
@@ -220,7 +231,7 @@ Table::Table(sf::Vector2f size) : cue(balls[0])
     edge.setFillColor(sf::Color(97, 54, 36)); // brown
 
     for (int i = 0; i < 6; i++) // places all 6 pockets in the correct positions in relation to the feild
-        pockets[i].setPosition(sf::Vector2f(400 - size.x / 2 + size.x * ((i / 2) / 2.0) - pockets[i].getRadius(), 300 - size.y / 2 + size.y * (i % 2) - pockets[i].getRadius()));
+        pockets[i].setPosition(sf::Vector2f(395 - size.x / 2 + (size.x + 10) * ((i / 2) / 2.0) - pockets[i].getRadius(), 295 - size.y / 2 + (size.y + 10) * (i % 2) - pockets[i].getRadius()));
 }
 
 void Table::init()
@@ -279,13 +290,10 @@ void Table::update(sf::Vector2i mousePosition)
             // wall collision physics
         }
         balls[i].speed -= balls[i].speed * frictionCoef;
-        /*for (int j = 0; j < 16; j++)
+        for (int j = 0; j < 16; j++)
             if (balls[i].colliding(balls[j])) {
-              float angleOfCollition = atan2f(balls[i].getPosition().y - balls[j].getPosition().y, balls[i].getPosition().x - balls[j].getPosition().x);
-              float inertiaTransfer = 90 / abs(balls[i].direction - angleOfCollition);
-              balls[j].hit(angleOfCollition, balls[i].speed * inertiaTransfer);
-              balls[i].speed -= balls[i].speed * inertiaTransfer;
-            }*/
+              
+            }
     }
 }
 
