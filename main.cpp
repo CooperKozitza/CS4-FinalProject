@@ -100,9 +100,9 @@ class Table
         
             void drawTo(sf::RenderWindow&);
 
-        /// \brief evaluates to true if the provided vector is within the playfeild \param p the point to check
+        /// \brief evaluates to true if the provided vector is within the playfeild \param p the point to check \param size optional - for checking if a area is in bounds
         
-            bool inBounds(sf::Vector2f);
+            bool inBounds(sf::Vector2f, sf::Vector2f);
 
         /// \brief returns a vector of the cue balls current position
 
@@ -112,6 +112,8 @@ class Table
 int main()
 {
     sf::RenderWindow window(sf::VideoMode(800, 600), "SFML works!");
+    window.setFramerateLimit(40);
+    
     Table table(sf::Vector2f(400, 200));
     table.init();
 
@@ -271,19 +273,19 @@ void Table::update(sf::Vector2i mousePosition)
 {
     cue.update(mousePosition);
     for (int i = 0; i < 16; i++) {
-        if (inBounds(balls[i].getPosition() + sf::Vector2f(balls[i].speed * sin(balls[i].direction * M_PI / 180), balls[i].speed * cos(balls[i].direction * M_PI / 180))))
+        if (inBounds(balls[i].getPosition() + sf::Vector2f(balls[i].speed * sin(balls[i].direction * M_PI / 180), balls[i].speed * cos(balls[i].direction * M_PI / 180)), sf::Vector2f(balls[i].getRadius(), balls[i].getRadius())))
             balls[i].move(sf::Vector2f(balls[i].speed * sin(balls[i].direction * M_PI / 180), balls[i].speed * cos(balls[i].direction * M_PI / 180)));
         else {
             // wall collision physics
         }
         balls[i].speed -= balls[i].speed * frictionCoef;
-        for (int j = 0; j < 16; j++)
+        /*for (int j = 0; j < 16; j++)
             if (balls[i].colliding(balls[j])) {
               float angleOfCollition = atan2f(balls[i].getPosition().y - balls[j].getPosition().y, balls[i].getPosition().x - balls[j].getPosition().x);
               float inertiaTransfer = 90 / abs(balls[i].direction - angleOfCollition);
               balls[j].hit(angleOfCollition, balls[i].speed * inertiaTransfer);
               balls[i].speed -= balls[i].speed * inertiaTransfer;
-            }
+            }*/
     }
 }
 
@@ -298,9 +300,9 @@ void Table::drawTo(sf::RenderWindow& target)
     cue.draw(target);
 }
 
-bool Table::inBounds(sf::Vector2f p)
+bool Table::inBounds(sf::Vector2f p, sf::Vector2f size = sf::Vector2f(0, 0))
 {
-    if (p. x > field.getPosition().x && p.y > field.getPosition().y && p.x < field.getPosition().x + field.getSize().x && p.y < field.getPosition().y + field.getSize().y)
+    if (p. x > field.getPosition().x && p.y > field.getPosition().y && p.x + size.x < field.getPosition().x + field.getSize().x && p.y + size.y < field.getPosition().y + field.getSize().y)
         return true;
     else
         return false;
