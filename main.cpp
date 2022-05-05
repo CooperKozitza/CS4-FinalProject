@@ -169,8 +169,8 @@ void Table::Ball::hit(float dir, float mag)
 
 bool Table::Ball::isCollidingWith(Ball& target)
 {
-    float distance = fabs(pow(target.getPosition().x - getPosition().x, 2) + pow(target.getPosition().y - getPosition().y, 2));
-    if (distance < pow(getRadius() + target.getRadius(), 2))
+    float distanceSquared = fabs(pow(target.getPosition().x - getPosition().x, 2) + pow(target.getPosition().y - getPosition().y, 2));
+    if (distanceSquared < pow(getRadius() + target.getRadius(), 2))
         return true;
     else
         return false;
@@ -274,21 +274,11 @@ void Table::reset()
 
     sf::Vector2f startingPositions[15] =
     {
-        sf::Vector2f(0, 0),
-        sf::Vector2f(64, 0),
-        sf::Vector2f(16, -8),
-        sf::Vector2f(48, -8),
-        sf::Vector2f(64, -16),
-        sf::Vector2f(32, 16),
-        sf::Vector2f(64, 32), 
-        sf::Vector2f(32, 0),
-        sf::Vector2f(48, -24),
-        sf::Vector2f(64, 16),
-        sf::Vector2f(16, 8),
-        sf::Vector2f(64, -32),
-        sf::Vector2f(48, 24), 
-        sf::Vector2f(32, -16), 
-        sf::Vector2f(48, 8)
+        sf::Vector2f(0, 0), sf::Vector2f(64, 0), sf::Vector2f(16, -8),
+        sf::Vector2f(48, -8), sf::Vector2f(64, -16), sf::Vector2f(32, 16),
+        sf::Vector2f(64, 32), sf::Vector2f(32, 0), sf::Vector2f(48, -24),
+        sf::Vector2f(64, 16), sf::Vector2f(16, 8), sf::Vector2f(64, -32),
+        sf::Vector2f(48, 24), sf::Vector2f(32, -16), sf::Vector2f(48, 8)
     };
 
     for (int i = 1; i < 16; i++)
@@ -309,28 +299,48 @@ void Table::update(sf::Vector2i mousePosition)
                 if (inBounds(balls[i].getPosition() + sf::Vector2f(sin(balls[i].direction * M_PI / 180), cos(balls[i].direction * M_PI / 180)), sf::Vector2f(balls[i].getRadius(), balls[i].getRadius())))
                     balls[i].move(sf::Vector2f(sin(balls[i].direction * M_PI / 180), cos(balls[i].direction * M_PI / 180)));
                 else { // ball + wall collision
-                    if (balls[i].getPosition().x >= field.getPosition().x + 1 && balls[i].getPosition().x + balls[i].getRadius() + 1 <= field.getPosition().x + field.getSize().x)
+                    if (balls[i].getPosition().x >= field.getPosition().x  && balls[i].getPosition().x + balls[i].getRadius() <= field.getPosition().x + field.getSize().x)
                         balls[i].direction = (balls[i].direction * -1) + 180; // angle after hitting top or bottome wall
-                    if (balls[i].getPosition().y >= field.getPosition().y + 1 && balls[i].getPosition().y + balls[i].getRadius() + 1 <= field.getPosition().y + field.getSize().y)
+                    if (balls[i].getPosition().y >= field.getPosition().y  && balls[i].getPosition().y + balls[i].getRadius() <= field.getPosition().y + field.getSize().y)
                         balls[i].direction *= -1; // angle after hitting left or right wall
                 }
-            }
-
-            for (int j = 0; j < 16; j++) // ball + ball collision
-                    if (balls[i].isCollidingWith(balls[j]) && j != i) { // finds collisions between balls[i] and every other ball besides itself
-                        collisionPairs.push_back({balls[i], balls[j]});
+                for (int k = 0; k < 16; k++) // ball + ball collision
+                    if (balls[i].isCollidingWith(balls[k]) && k != i) { // finds collisions between balls[i] and every other ball besides itself
+                        collisionPairs.push_back({balls[i], balls[k]}); // adds collision pairs to list for proccessing sepperatly later
 
                         // static resolution
-                            float distance = sqrtf(pow(balls[i].getPosition().x - balls[j].getPosition().x, 2) + pow(balls[i].getPosition().y - balls[j].getPosition().y, 2));
-                            float overlap = (distance - balls[i].getRadius() - balls[j].getRadius()) / 2;
+                            float distance = sqrtf(pow(balls[i].getPosition().x - balls[k].getPosition().x, 2) + pow(balls[i].getPosition().y - balls[k].getPosition().y, 2));
+                            float overlap = (distance - balls[i].getRadius() - balls[k].getRadius()) / 2;
 
                             // move balls so they are no longer colliding (makes them solid-bodies)
-                            balls[i].move(sf::Vector2f(-(overlap * (balls[i].getPosition().x - balls[j].getPosition().x) / distance), -(overlap * (balls[i].getPosition().y - balls[j].getPosition().y) / distance)));
-                            balls[j].move(sf::Vector2f(overlap * (balls[i].getPosition().x - balls[j].getPosition().x) / distance, overlap * (balls[i].getPosition().y - balls[j].getPosition().y) / distance));
+                            balls[i].move(sf::Vector2f(-(overlap * (balls[i].getPosition().x - balls[k].getPosition().x) / distance), -(overlap * (balls[i].getPosition().y - balls[k].getPosition().y) / distance)));
+                            balls[k].move(sf::Vector2f(overlap * (balls[i].getPosition().x - balls[k].getPosition().x) / distance, overlap * (balls[i].getPosition().y - balls[k].getPosition().y) / distance));
+                }
+            }
+        else {
+            if (!inBounds(balls[i].getPosition(), sf::Vector2f(balls[i].getRadius(), balls[i].getRadius()))) { // ball + wall collision
+                if (balls[i].getPosition().x >= field.getPosition().x  && balls[i].getPosition().x + balls[i].getRadius() <= field.getPosition().x + field.getSize().x)
+                    balls[i].direction = (balls[i].direction * -1) + 180; // angle after hitting top or bottome wall
+                if (balls[i].getPosition().y >= field.getPosition().y  && balls[i].getPosition().y + balls[i].getRadius() <= field.getPosition().y + field.getSize().y)
+                    balls[i].direction *= -1; // angle after hitting left or right wall
+            }
+            for (int j = 0; j < 16; j++) // ball + ball collision
+                if (balls[i].isCollidingWith(balls[j]) && j != i) { // finds collisions between balls[i] and every other ball besides itself
+                    collisionPairs.push_back({balls[i], balls[j]}); // adds collision pairs to list for proccessing sepperatly later
+
+                    // static resolution
+                        float distance = sqrtf(pow(balls[i].getPosition().x - balls[j].getPosition().x, 2) + pow(balls[i].getPosition().y - balls[j].getPosition().y, 2));
+                        float overlap = (distance - balls[i].getRadius() - balls[j].getRadius()) / 2;
+
+                        // move balls so they are no longer colliding (makes them solid-bodies)
+                        balls[i].move(sf::Vector2f(-(overlap * (balls[i].getPosition().x - balls[j].getPosition().x) / distance), -(overlap * (balls[i].getPosition().y - balls[j].getPosition().y) / distance)));
+                        balls[j].move(sf::Vector2f(overlap * (balls[i].getPosition().x - balls[j].getPosition().x) / distance, overlap * (balls[i].getPosition().y - balls[j].getPosition().y) / distance));
+                }
             }
         balls[i].speed *= frictionCoef;
     }
-    // dynamic resolution physics 
+    // dynamic resolution physics *NOT WORKING*
+    /* 
     for (int i = 0; i < collisionPairs.size(); i++) {
         float mass = 1;
 
@@ -347,15 +357,12 @@ void Table::update(sf::Vector2i mousePosition)
         float tanDotProduct1 = ball1.getVelocity().x * tangent.x + ball1.getVelocity().y * tangent.y;
         float tanDotProduct2 = ball2.getVelocity().x * tangent.x + ball2.getVelocity().y * tangent.y;
 
-        float normalDotProduct1 = ball1.getVelocity().x * normal.x + ball1.getVelocity().y * normal.y;
-        float normalDotProduct2 = ball2.getVelocity().x * normal.x + ball2.getVelocity().y * normal.y;
+        float normalDotProduct = (ball1.getVelocity().x * normal.x + ball1.getVelocity().y * normal.y) * (ball2.getVelocity().x * normal.x + ball2.getVelocity().y * normal.y);
 
-        float m1 = (normalDotProduct1 * (mass - mass) + 2.0f * mass * normalDotProduct2) / (mass + mass);
-		float m2 = (normalDotProduct2 * (mass - mass) + 2.0f * mass * normalDotProduct1) / (mass + mass);
-
-        ball1.setVelocity(tangent.x * tanDotProduct1 + normalDotProduct1 * m1, tangent.y * tanDotProduct1 + normalDotProduct1 * m1);
-        ball2.setVelocity(tangent.x * tanDotProduct2 + normalDotProduct2 * m2, tangent.y * tanDotProduct2 + normalDotProduct2 * m2);
-    }
+        ball1.setVelocity(tangent.x * tanDotProduct1 + normalDotProduct, tangent.y * tanDotProduct1 + normalDotProduct);
+        ball2.setVelocity(tangent.x * tanDotProduct2 + normalDotProduct, tangent.y * tanDotProduct2 + normalDotProduct);
+    } 
+    */
 }
 
 void Table::drawTo(sf::RenderWindow& target) 
