@@ -1,5 +1,6 @@
 #include <SFML/Graphics.hpp>
 #include <SFML/Window.hpp>
+#include <iostream>
 #include <vector>
 #include <math.h>
 
@@ -23,9 +24,18 @@ class Table
                 
                     void hit(float, float);
 
+
                 /// \brief evaluates to true if the ball is colliding with the target ball \param target the ball to check for collision with
                 
-                    bool colliding(Ball);
+                    bool isCollidingWith(Ball&);\
+
+                /// \brief gets the x and y velocities \returns sf::Vector2f
+
+                    sf::Vector2f getVelocity();
+
+                /// \brief sets the balls angle/speed based on x/y velocity \param vx the target x velocity \param vy the target y velocity
+
+                    void setVelocity(float, float);
         };
 
         class Pocket : public sf::CircleShape
@@ -42,7 +52,7 @@ class Table
         sf::RectangleShape field;
         sf::RectangleShape edge;
 
-        const double frictionCoef = 0.1; // friction applied to moving objects on the feild
+        const double frictionCoef = 0.95; // friction applied to moving objects on the feild
 
     public:
         class Cue
@@ -102,17 +112,17 @@ class Table
 
         /// \brief evaluates to true if the provided vector is within the playfeild \param p the point to check \param size optional - for checking if a area is in bounds
         
-            bool inBounds(sf::Vector2f, sf::Vector2f);
+            bool inBounds(sf::Vector2f, sf::Vector2f = sf::Vector2f(0, 0));
 
         /// \brief returns a vector of the cue balls current position
-
+            
             sf::Vector2f getCueBallPosition() {return balls[0].getPosition();}
 };
 
 int main()
 {
     sf::RenderWindow window(sf::VideoMode(800, 600), "SFML works!");
-    window.setFramerateLimit(40);
+    window.setFramerateLimit(60);
     
     Table table(sf::Vector2f(400, 200));
     table.init();
@@ -157,13 +167,21 @@ void Table::Ball::hit(float dir, float mag)
     speed = mag;
 }
 
-bool Table::Ball::colliding(Ball target)
+bool Table::Ball::isCollidingWith(Ball& target)
 {
-    float distance = sqrt(pow(target.getPosition().x - getPosition().x, 2) + pow(target.getPosition().y - getPosition().y, 2));
-    if (distance <= 16)
+    float distance = fabs(pow(target.getPosition().x - getPosition().x, 2) + pow(target.getPosition().y - getPosition().y, 2));
+    if (distance < pow(getRadius() + target.getRadius(), 2))
         return true;
     else
         return false;
+}
+
+sf::Vector2f Table::Ball::getVelocity() {return sf::Vector2f(speed * sin(direction * M_PI / 180), speed * cos(direction * M_PI / 180));}
+
+void Table::Ball::setVelocity(float vx, float vy)
+{
+    speed = sqrtf((vx * vx) + (vy * vy));
+    direction = atan2f(vy, vx) * 180 / M_PI;
 }
 
 Table::Pocket::Pocket()
@@ -187,7 +205,7 @@ Table::Cue::Cue(Ball& cueBall) : cueBall(cueBall)
 void Table::Cue::release()
 {
     released = true;
-    if (power > 10) {
+    if (power > 5) {
         cueBall.hit(90 - angle, power);
     }
 }
@@ -282,18 +300,61 @@ void Table::reset()
 
 void Table::update(sf::Vector2i mousePosition)
 {
+    std::vector<std::pair<Ball&, Ball&>> collisionPairs;
+
     cue.update(mousePosition);
     for (int i = 0; i < 16; i++) {
-        if (inBounds(balls[i].getPosition() + sf::Vector2f(balls[i].speed * sin(balls[i].direction * M_PI / 180), balls[i].speed * cos(balls[i].direction * M_PI / 180)), sf::Vector2f(balls[i].getRadius(), balls[i].getRadius())))
-            balls[i].move(sf::Vector2f(balls[i].speed * sin(balls[i].direction * M_PI / 180), balls[i].speed * cos(balls[i].direction * M_PI / 180)));
-        else {
-            // wall collision physics
-        }
-        balls[i].speed -= balls[i].speed * frictionCoef;
-        for (int j = 0; j < 16; j++)
-            if (balls[i].colliding(balls[j])) {
-              
+        if (balls[i].speed > 0)
+            for (int j = 1; j < balls[i].speed; j++) {
+                if (inBounds(balls[i].getPosition() + sf::Vector2f(sin(balls[i].direction * M_PI / 180), cos(balls[i].direction * M_PI / 180)), sf::Vector2f(balls[i].getRadius(), balls[i].getRadius())))
+                    balls[i].move(sf::Vector2f(sin(balls[i].direction * M_PI / 180), cos(balls[i].direction * M_PI / 180)));
+                else { // ball + wall collision
+                    if (balls[i].getPosition().x >= field.getPosition().x + 1 && balls[i].getPosition().x + balls[i].getRadius() + 1 <= field.getPosition().x + field.getSize().x)
+                        balls[i].direction = (balls[i].direction * -1) + 180; // angle after hitting top or bottome wall
+                    if (balls[i].getPosition().y >= field.getPosition().y + 1 && balls[i].getPosition().y + balls[i].getRadius() + 1 <= field.getPosition().y + field.getSize().y)
+                        balls[i].direction *= -1; // angle after hitting left or right wall
+                }
             }
+
+            for (int j = 0; j < 16; j++) // ball + ball collision
+                    if (balls[i].isCollidingWith(balls[j]) && j != i) { // finds collisions between balls[i] and every other ball besides itself
+                        collisionPairs.push_back({balls[i], balls[j]});
+
+                        // static resolution
+                            float distance = sqrtf(pow(balls[i].getPosition().x - balls[j].getPosition().x, 2) + pow(balls[i].getPosition().y - balls[j].getPosition().y, 2));
+                            float overlap = (distance - balls[i].getRadius() - balls[j].getRadius()) / 2;
+
+                            // move balls so they are no longer colliding (makes them solid-bodies)
+                            balls[i].move(sf::Vector2f(-(overlap * (balls[i].getPosition().x - balls[j].getPosition().x) / distance), -(overlap * (balls[i].getPosition().y - balls[j].getPosition().y) / distance)));
+                            balls[j].move(sf::Vector2f(overlap * (balls[i].getPosition().x - balls[j].getPosition().x) / distance, overlap * (balls[i].getPosition().y - balls[j].getPosition().y) / distance));
+            }
+        balls[i].speed *= frictionCoef;
+    }
+    // dynamic resolution physics 
+    for (int i = 0; i < collisionPairs.size(); i++) {
+        float mass = 1;
+
+        Ball& ball1 = collisionPairs[i].first;
+        Ball& ball2 = collisionPairs[i].second;
+
+        float distance = sqrtf(pow(ball1.getPosition().x - ball2.getPosition().x, 2) + pow(ball1.getPosition().y - ball2.getPosition().y, 2));
+
+        // normal vector
+        sf::Vector2f normal((ball1.getPosition().x - ball2.getPosition().x) / distance, (ball1.getPosition().y - ball2.getPosition().y) / distance);
+        // tangent vector
+        sf::Vector2f tangent(-normal.y, normal.x);
+
+        float tanDotProduct1 = ball1.getVelocity().x * tangent.x + ball1.getVelocity().y * tangent.y;
+        float tanDotProduct2 = ball2.getVelocity().x * tangent.x + ball2.getVelocity().y * tangent.y;
+
+        float normalDotProduct1 = ball1.getVelocity().x * normal.x + ball1.getVelocity().y * normal.y;
+        float normalDotProduct2 = ball2.getVelocity().x * normal.x + ball2.getVelocity().y * normal.y;
+
+        float m1 = (normalDotProduct1 * (mass - mass) + 2.0f * mass * normalDotProduct2) / (mass + mass);
+		float m2 = (normalDotProduct2 * (mass - mass) + 2.0f * mass * normalDotProduct1) / (mass + mass);
+
+        ball1.setVelocity(tangent.x * tanDotProduct1 + normalDotProduct1 * m1, tangent.y * tanDotProduct1 + normalDotProduct1 * m1);
+        ball2.setVelocity(tangent.x * tanDotProduct2 + normalDotProduct2 * m2, tangent.y * tanDotProduct2 + normalDotProduct2 * m2);
     }
 }
 
@@ -308,9 +369,9 @@ void Table::drawTo(sf::RenderWindow& target)
     cue.draw(target);
 }
 
-bool Table::inBounds(sf::Vector2f p, sf::Vector2f size = sf::Vector2f(0, 0))
+bool Table::inBounds(sf::Vector2f p, sf::Vector2f size)
 {
-    if (p. x > field.getPosition().x && p.y > field.getPosition().y && p.x + size.x < field.getPosition().x + field.getSize().x && p.y + size.y < field.getPosition().y + field.getSize().y)
+    if (p. x >= field.getPosition().x && p.y > field.getPosition().y && p.x + size.x < field.getPosition().x + field.getSize().x && p.y + size.y < field.getPosition().y + field.getSize().y)
         return true;
     else
         return false;
