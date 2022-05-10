@@ -16,7 +16,9 @@ class Table
             public:
                 float direction, speed;
 
-                Ball() {setRadius(8);}
+                sf::RectangleShape deleteme;
+
+                Ball() {setRadius(8); deleteme.setSize(sf::Vector2f(10, 3)); deleteme.setOrigin(sf::Vector2f(0, 1.5)); deleteme.setFillColor(sf::Color::Red);}
 
                 void setId(int id) {this -> id = id;}
 
@@ -46,7 +48,7 @@ class Table
         };
         
         // private members:
-        Ball balls[16]; // array that stores all 15 of the balls and the cue ball ([0])
+        Ball balls[2 + 0]; // array that stores all 15 of the balls and the cue ball ([0])
         Pocket pockets[6]; // array that stores all 6 of the pockets
 
         sf::RectangleShape field;
@@ -255,7 +257,7 @@ Table::Table(sf::Vector2f size) : cue(balls[0])
 void Table::init()
 {
     sf::Color ballColors[9] = {sf::Color::White, sf::Color::Yellow, sf::Color::Blue, sf::Color::Red, sf::Color(75,0,130), sf::Color(255,69,0), sf::Color::Green, sf::Color(128,0,0), sf::Color::Black};
-    for (int i = 0; i < 16; i++) {
+    for (int i = 0; i < 2 + 0; i++) {
         if (i < 9)
             balls[i].setFillColor(ballColors[i]);
         else {
@@ -281,7 +283,7 @@ void Table::reset()
         sf::Vector2f(48, 24), sf::Vector2f(32, -16), sf::Vector2f(48, 8)
     };
 
-    for (int i = 1; i < 16; i++)
+    for (int i = 1; i < 2 + 0; i++)
     {
         balls[i].setPosition(sf::Vector2f(field.getPosition().x + field.getSize().x / 4 * 3 + startingPositions[i - 1].x - balls[0].getRadius(), field.getPosition().y + field.getSize().y / 2 + startingPositions[i - 1].y - balls[0].getRadius()));
         balls[i].speed = 0;
@@ -290,39 +292,38 @@ void Table::reset()
 
 void Table::update(sf::Vector2i mousePosition)
 {
-
     if (cue.isVisible())
         cue.update(mousePosition);
 
-    for (int i = 0; i < 16; i++) { // parse thru entire ball array
+    for (int i = 0; i < 2 + 0; i++) { // parse thru entire ball array
         for (int j = 1; j < balls[i].speed; j++) { // apply speed in direction while speed is greater than zero and the ball is in bounds
             balls[i].move(cos(balls[i].direction * M_PI / 180), sin(balls[i].direction * M_PI / 180));
             if (!inBounds(balls[i].getPosition(), sf::Vector2f(2 * balls[i].getRadius(), 2 * balls[i].getRadius()))) break;
-            //for (int k = 0; k < 16; k++) if (balls[i].isCollidingWith(balls[k])) break;
+            for (int k = 0; k < 2 + 0; k++) if (balls[i].isCollidingWith(balls[k])) break;
         }
         if (!inBounds(balls[i].getPosition(), sf::Vector2f(2 * balls[i].getRadius(), 2 * balls[i].getRadius()))) { // ball + wall collision
             if (balls[i].getPosition().x <= field.getPosition().x) {
                 while (balls[i].getPosition().x < field.getPosition().x) // resolve tunnelling
                     balls[i].move(1, 0);
-                balls[i].direction *= -1; // angle after hitting right wall
+                balls[i].direction = (balls[i].direction * -1) + 180; // angle after hitting right wall
             }
             else if (balls[i].getPosition().x + 2 * balls[i].getRadius() >= field.getPosition().x + field.getSize().x) {
                 while (balls[i].getPosition().x + 2 * balls[i].getRadius() > field.getPosition().x + field.getSize().x) // resolve tunnelling
                     balls[i].move(-1, 0);
-                balls[i].direction *= -1; // angle after hitting left wall
+                balls[i].direction = (balls[i].direction * -1) + 180; // angle after hitting left wall
             }
             if (balls[i].getPosition().y <= field.getPosition().y) {
                 while (balls[i].getPosition().y < field.getPosition().y) // resolve tunnelling
                     balls[i].move(0, 1);
-                balls[i].direction = (balls[i].direction * -1) + 180; // angle after hitting top wall
+                balls[i].direction *= -1; // angle after hitting top wall
             }
             else if (balls[i].getPosition().y + 2 * balls[i].getRadius() >= field.getPosition().y + field.getSize().y) {
                 while (balls[i].getPosition().y + 2 * balls[i].getRadius() > field.getPosition().y + field.getSize().y) // resolve tunnelling
                     balls[i].move(0, -1);
-                balls[i].direction = (balls[i].direction * -1) + 180; // angle after hitting bottom wall
+                balls[i].direction *= -1; // angle after hitting bottom wall
             }
         }
-        for (int j = 0; j < 16; j++) // check for collisions between target ball and every other ball, ik its not efficient :)
+        for (int j = 0; j < 2 + 0; j++) // check for collisions between target ball and every other ball, ik its not efficient :)
             if (balls[i].isCollidingWith(balls[j]) && j != i) {
                 float distance = sqrtf(pow(balls[i].getPosition().x - balls[j].getPosition().x, 2) + pow(balls[i].getPosition().y - balls[j].getPosition().y, 2));
                 float overlap = (distance - balls[i].getRadius() - balls[j].getRadius()) / 2;
@@ -353,6 +354,10 @@ void Table::update(sf::Vector2i mousePosition)
                 */
             }
         balls[i].speed *= frictionCoef; // apply friction
+
+        // delete this:
+        balls[i].deleteme.setPosition(balls[i].getPosition() + sf::Vector2f(balls[i].getRadius(), balls[i].getRadius()));
+        balls[i].deleteme.setRotation(balls[i].direction);
     }
     
 }
@@ -363,8 +368,8 @@ void Table::drawTo(sf::RenderWindow& target)
     target.draw(field);
     for (int i = 0; i < 6; i++)
         target.draw(pockets[i]);
-    for (int i = 0; i < 16; i++)
-        target.draw(balls[i]);
+    for (int i = 0; i < 2 + 0; i++)
+        target.draw(balls[i]), target.draw(balls[i].deleteme);
     cue.draw(target);
 }
 
