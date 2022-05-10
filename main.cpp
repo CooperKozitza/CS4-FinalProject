@@ -182,7 +182,7 @@ sf::Vector2f Table::Ball::getVelocity() {return sf::Vector2f(speed * cos(directi
 void Table::Ball::setVelocity(float vx, float vy)
 {
     speed = sqrtf((vy * vy) + (vx * vx)) / 5.0f;
-    direction = atan2f(vx, vy) * (180 / M_PI);
+    direction = atan2f(vy, vx) * 180 / M_PI;
 }
 
 Table::Pocket::Pocket()
@@ -334,7 +334,7 @@ void Table::update(sf::Vector2i mousePosition)
 
                 // dynamic resolution
                 sf::Vector2f normal((balls[j].getPosition().x - balls[i].getPosition().x) / distance, (balls[j].getPosition().y - balls[i].getPosition().y) / distance);
-                sf::Vector2f tangent((balls[j].getPosition().y - balls[i].getPosition().y) / distance, -(balls[j].getPosition().x - balls[j].getPosition().x) / distance);
+                sf::Vector2f tangent(-(balls[j].getPosition().y - balls[i].getPosition().y) / distance, (balls[j].getPosition().x - balls[i].getPosition().x) / distance);
 
                 
                 std::pair<float, float> normalDotProduct = {balls[i].getVelocity().x * normal.x + balls[i].getVelocity().y * normal.y, balls[j].getVelocity().x * normal.x + balls[j].getVelocity().y * normal.y};
