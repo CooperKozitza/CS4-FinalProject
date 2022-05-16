@@ -26,7 +26,6 @@ class Table
                 
                     void hit(float, float);
 
-
                 /// \brief evaluates to true if the ball is colliding with the target ball \param target the ball to check for collision with
                 
                     bool isCollidingWith(Ball&);\
@@ -79,7 +78,7 @@ class Table
 
                 /// \param ammount pulls back the cue to this ammount
                 
-                    void pullBack(float ammount) {if (power < 100) power = ammount; else power = 100;}
+                    void pullBack(float ammount) {if (power < 30) power = ammount; else power = 100;}
 
                 /// \brief releases the cue and hits the cue ball \param balll the ball to hit
                 
@@ -91,7 +90,7 @@ class Table
 
                 /// \brief if displayed, draws the cue to the target
                 
-                    void draw(sf::RenderWindow&);
+                    void drawTo(sf::RenderWindow&);
         };
 
         Cue cue;
@@ -119,13 +118,73 @@ class Table
             bool inBounds(sf::Vector2f, sf::Vector2f = sf::Vector2f(0, 0));
 };
 
+class UI
+{
+	private:
+		static sf::Color scheme[2]; // stores two colors used for the color scheme of the ui
+		static sf::Font font; // font of the ui
+		class Button : public sf::RectangleShape // class for a basic button
+		{
+            public:
+                bool clicked;
+                void update(sf::Vector2i);
+		};
+		class SaveButton : public Button // saves current game to a file (extention problem)
+		{
+            public:
+                SaveButton(sf::Vector2f);
+                sf::Text text;
+		};
+		class LoadButton : public Button // loads the game from a file (extention problem)
+		{
+            public:
+                LoadButton(sf::Vector2f);
+                sf::Text text;
+		};
+
+		class PlayerBanner : public sf::RectangleShape // indicates whos turn it is
+		{
+            public:
+                PlayerBanner(sf::Vector2f);
+                sf::Text text;
+		};
+	public:
+
+		SaveButton save;
+		LoadButton load;
+
+		PlayerBanner playerBanner;
+		UI();
+		void update(sf::Vector2i);
+		void drawTo(sf::RenderWindow&);
+};
+
+class Game
+{
+	private:
+		struct Player
+		{
+			bool team; // 0/false = solids, 1/true = stripes
+			bool isTurn;
+            int ballsRemaining;
+		};
+		Player player[2];
+	public:
+
+		Game();
+		void update();
+		void drawTo(sf::RenderWindow&);
+};
+
 int main()
 {
     sf::RenderWindow window(sf::VideoMode(800, 600), "SFML works!");
-    window.setFramerateLimit(15);
+    window.setFramerateLimit(60);
     
     Table table(sf::Vector2f(400, 200));
     table.init();
+
+		UI ui;
 
     bool hold = false;
     sf::Vector2i clickPosition;
@@ -155,6 +214,7 @@ int main()
         table.update(sf::Mouse::getPosition(window));
 
         window.clear();
+		ui.drawTo(window);
         table.drawTo(window);
         window.display();
     }
@@ -181,7 +241,7 @@ sf::Vector2f Table::Ball::getVelocity() {return sf::Vector2f(speed * cos(directi
 
 void Table::Ball::setVelocity(float vx, float vy)
 {
-    speed = sqrtf((vy * vy) + (vx * vx)) / 5.0f;
+    speed = sqrtf((vy * vy) + (vx * vx));
     direction = atan2f(vy, vx) * 180 / M_PI;
 }
 
@@ -232,7 +292,7 @@ void Table::Cue::update(sf::Vector2i mousePosition)
     }
 }
 
-void Table::Cue::draw(sf::RenderWindow& target)
+void Table::Cue::drawTo(sf::RenderWindow& target)
 {
     if (visible) {
         target.draw(stick);
@@ -296,12 +356,14 @@ void Table::update(sf::Vector2i mousePosition)
         cue.update(mousePosition);
 
     for (int i = 0; i < 2 + 0; i++) { // parse thru entire ball array
+		if (balls[i].speed > 30) balls[i].speed = 20;
         for (int j = 1; j < balls[i].speed; j++) { // apply speed in direction while speed is greater than zero and the ball is in bounds
             balls[i].move(cos(balls[i].direction * M_PI / 180), sin(balls[i].direction * M_PI / 180));
             if (!inBounds(balls[i].getPosition(), sf::Vector2f(2 * balls[i].getRadius(), 2 * balls[i].getRadius()))) break;
             for (int k = 0; k < 2 + 0; k++) if (balls[i].isCollidingWith(balls[k])) break;
         }
         if (!inBounds(balls[i].getPosition(), sf::Vector2f(2 * balls[i].getRadius(), 2 * balls[i].getRadius()))) { // ball + wall collision
+            std::cout << "ball " << i << " hit a wall" << std::endl;
             if (balls[i].getPosition().x <= field.getPosition().x) {
                 while (balls[i].getPosition().x < field.getPosition().x) // resolve tunnelling
                     balls[i].move(1, 0);
@@ -325,6 +387,7 @@ void Table::update(sf::Vector2i mousePosition)
         }
         for (int j = 0; j < 2 + 0; j++) // check for collisions between target ball and every other ball, ik its not efficient :)
             if (balls[i].isCollidingWith(balls[j]) && j != i) {
+                cout << "ball " << i << " collided with ball " << j << 
                 float distance = sqrtf(pow(balls[i].getPosition().x - balls[j].getPosition().x, 2) + pow(balls[i].getPosition().y - balls[j].getPosition().y, 2));
                 float overlap = (distance - balls[i].getRadius() - balls[j].getRadius()) / 2;
 
@@ -342,16 +405,6 @@ void Table::update(sf::Vector2i mousePosition)
 
                 balls[i].setVelocity(tangent.x * tangentDotProduct.first + normal.x * normalDotProduct.second, tangent.y * tangentDotProduct.first + normal.y * normalDotProduct.second);
                 balls[j].setVelocity(tangent.x * tangentDotProduct.second + normal.x * normalDotProduct.first, tangent.y * tangentDotProduct.second + normal.y * normalDotProduct.first);
-                
-                /*
-                float kx = (balls[i].getVelocity().x - balls[j].getVelocity().x);
-                float ky = (balls[i].getVelocity().y - balls[j].getVelocity().y);
-
-                float p = normal.x * kx + normal.y * ky;
-
-                balls[i].setVelocity(balls[i].getVelocity().x - p * normal.x, balls[i].getVelocity().y - p * normal.y);
-                balls[j].setVelocity(balls[j].getVelocity().x + p * normal.x, balls[j].getVelocity().y + p * normal.y);
-                */
             }
         balls[i].speed *= frictionCoef; // apply friction
 
@@ -370,7 +423,7 @@ void Table::drawTo(sf::RenderWindow& target)
         target.draw(pockets[i]);
     for (int i = 0; i < 2 + 0; i++)
         target.draw(balls[i]), target.draw(balls[i].deleteme);
-    cue.draw(target);
+    cue.drawTo(target);
 }
 
 bool Table::inBounds(sf::Vector2f p, sf::Vector2f size)
@@ -379,4 +432,72 @@ bool Table::inBounds(sf::Vector2f p, sf::Vector2f size)
         return true;
     else
         return false;
+}
+
+sf::Color UI::scheme[2] = {sf::Color(255, 255, 255, 20), sf::Color(255, 100, 100, 20)};
+sf::Font UI::font;
+
+UI::SaveButton::SaveButton(sf::Vector2f size) : text("save", font) {
+		setSize(size);
+
+        text.setScale(0.5, 0.5);
+
+		setOutlineThickness(5);
+		setOutlineColor(scheme[0] + sf::Color(0, 0, 0, 50));
+
+		setFillColor(scheme[0]);
+}
+
+UI::LoadButton::LoadButton(sf::Vector2f size) : text("load", font)
+{
+		setSize(size);
+
+        text.setScale(0.5, 0.5);
+
+		setOutlineThickness(5);
+		setOutlineThickness(5);
+		setOutlineColor(scheme[0] + sf::Color(0, 0, 0, 50));
+
+		setFillColor(scheme[0]);
+}
+
+UI::PlayerBanner::PlayerBanner(sf::Vector2f size) : text("Player: ", font)
+{
+		setSize(size);
+
+        text.setScale(0.5, 0.5);
+
+		setOutlineThickness(5);
+		setOutlineThickness(5);
+		setOutlineColor(scheme[0] + sf::Color(0, 0, 0, 50));
+
+		setFillColor(scheme[0]);
+}
+
+UI::UI() : 
+	save(sf::Vector2f(60, 20)), load(sf::Vector2f(60, 20)), 
+	playerBanner(sf::Vector2f(150, 20))
+{
+	if (!font.loadFromFile("RobotoMono-Bold.ttf"))
+        std::cout << "error loading font: ./RobotoMono-Bold.ttf" << std::endl;
+
+	save.setPosition(sf::Vector2f(15, 570));
+    save.text.setPosition(sf::Vector2f(20, 570));
+
+	load.setPosition(sf::Vector2f(90, 570));
+    load.text.setPosition(sf::Vector2f(95, 570));
+
+	playerBanner.setPosition(sf::Vector2f(325, 15));
+    playerBanner.text.setPosition(sf::Vector2f(330, 15));
+
+};
+
+void UI::drawTo(sf::RenderWindow& target)
+{
+	target.draw(save);
+    target.draw(save.text);
+	target.draw(load);
+    target.draw(load.text);
+	target.draw(playerBanner);
+    target.draw(playerBanner.text);
 }
