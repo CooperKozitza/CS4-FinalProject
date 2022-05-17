@@ -3,6 +3,9 @@
 #include <iostream>
 #include <vector>
 #include <math.h>
+#include <string.h>
+#include <sstream>
+#include <fstream>
 
 class Table
 {
@@ -14,7 +17,7 @@ class Table
                 int id;
 
             public:
-                float direction, speed;
+                float direction{0}, speed{0};
 
                 sf::RectangleShape deleteme;
 
@@ -47,15 +50,14 @@ class Table
         };
         
         // private members:
-        Ball balls[2 + 0]; // array that stores all 15 of the balls and the cue ball ([0])
-        Pocket pockets[6]; // array that stores all 6 of the pockets
-
         sf::RectangleShape field;
         sf::RectangleShape edge;
 
         const double frictionCoef = 0.99; // friction applied to moving objects on the feild
 
     public:
+        Ball balls[16]; // array that stores all 15 of the balls and the cue ball ([0])
+        Pocket pockets[6]; // array that stores all 6 of the pockets
         class Cue
         {
             private:
@@ -127,7 +129,7 @@ class UI
 		{
             public:
                 bool clicked;
-                void update(sf::Vector2i);
+                void update(bool, sf::Vector2i);
 		};
 		class SaveButton : public Button // saves current game to a file (extention problem)
 		{
@@ -155,7 +157,7 @@ class UI
 
 		PlayerBanner playerBanner;
 		UI();
-		void update(sf::Vector2i);
+		void update(bool, sf::Vector2i, bool);
 		void drawTo(sf::RenderWindow&);
 };
 
@@ -169,10 +171,18 @@ class Game
             int ballsRemaining;
 		};
 		Player player[2];
+        Table table;
+        UI ui;
 	public:
+        Table::Cue& cue = table.cue;
+        bool turn = 0;
 
 		Game();
-		void update();
+
+        void save();
+        void load();
+
+		void update(bool, sf::Vector2i);
 		void drawTo(sf::RenderWindow&);
 };
 
@@ -180,13 +190,10 @@ int main()
 {
     sf::RenderWindow window(sf::VideoMode(800, 600), "SFML works!");
     window.setFramerateLimit(60);
-    
-    Table table(sf::Vector2f(400, 200));
-    table.init();
 
-		UI ui;
+    Game game;
 
-    bool hold = false;
+    bool mouseDown = false;
     sf::Vector2i clickPosition;
 
     while (window.isOpen())
@@ -197,25 +204,23 @@ int main()
             if (event.type == sf::Event::Closed) window.close();
 
             if (event.type == sf::Event::MouseButtonPressed) {
-                hold = true;
+                mouseDown = true;
                 clickPosition = sf::Mouse::getPosition(window); 
             }
 
             if (event.type == sf::Event::MouseButtonReleased) {
-                hold = false;
-                table.cue.release();
+                mouseDown = false;
+                game.cue.release();
+                game.turn = !game.turn;
             }
         }
+        if (mouseDown)
+            game.cue.pullBack(sqrt(pow(clickPosition.x - sf::Mouse::getPosition(window).x, 2) + pow(clickPosition.y - sf::Mouse::getPosition(window).y, 2)));
 
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Space)) table.reset();
-        if (hold)
-            table.cue.pullBack(sqrt(pow(clickPosition.x - sf::Mouse::getPosition(window).x, 2) + pow(clickPosition.y - sf::Mouse::getPosition(window).y, 2)));
-
-        table.update(sf::Mouse::getPosition(window));
+        game.update(mouseDown, sf::Mouse::getPosition(window));
 
         window.clear();
-		ui.drawTo(window);
-        table.drawTo(window);
+		game.drawTo(window);
         window.display();
     }
 
@@ -317,7 +322,7 @@ Table::Table(sf::Vector2f size) : cue(balls[0])
 void Table::init()
 {
     sf::Color ballColors[9] = {sf::Color::White, sf::Color::Yellow, sf::Color::Blue, sf::Color::Red, sf::Color(75,0,130), sf::Color(255,69,0), sf::Color::Green, sf::Color(128,0,0), sf::Color::Black};
-    for (int i = 0; i < 2 + 0; i++) {
+    for (int i = 0; i < 16; i++) {
         if (i < 9)
             balls[i].setFillColor(ballColors[i]);
         else {
@@ -343,7 +348,7 @@ void Table::reset()
         sf::Vector2f(48, 24), sf::Vector2f(32, -16), sf::Vector2f(48, 8)
     };
 
-    for (int i = 1; i < 2 + 0; i++)
+    for (int i = 1; i < 16; i++)
     {
         balls[i].setPosition(sf::Vector2f(field.getPosition().x + field.getSize().x / 4 * 3 + startingPositions[i - 1].x - balls[0].getRadius(), field.getPosition().y + field.getSize().y / 2 + startingPositions[i - 1].y - balls[0].getRadius()));
         balls[i].speed = 0;
@@ -355,12 +360,13 @@ void Table::update(sf::Vector2i mousePosition)
     if (cue.isVisible())
         cue.update(mousePosition);
 
-    for (int i = 0; i < 2 + 0; i++) { // parse thru entire ball array
+    for (int i = 0; i < 16; i++) { // parse thru entire ball array
 		if (balls[i].speed > 30) balls[i].speed = 20;
+        else if (balls[i].speed < 1) balls[i].speed = 0;
         for (int j = 1; j < balls[i].speed; j++) { // apply speed in direction while speed is greater than zero and the ball is in bounds
             balls[i].move(cos(balls[i].direction * M_PI / 180), sin(balls[i].direction * M_PI / 180));
             if (!inBounds(balls[i].getPosition(), sf::Vector2f(2 * balls[i].getRadius(), 2 * balls[i].getRadius()))) break;
-            for (int k = 0; k < 2 + 0; k++) if (balls[i].isCollidingWith(balls[k])) break;
+            for (int k = 0; k < 16; k++) if (balls[i].isCollidingWith(balls[k])) break;
         }
         if (!inBounds(balls[i].getPosition(), sf::Vector2f(2 * balls[i].getRadius(), 2 * balls[i].getRadius()))) { // ball + wall collision
             std::cout << "ball " << i << " hit a wall" << std::endl;
@@ -385,9 +391,8 @@ void Table::update(sf::Vector2i mousePosition)
                 balls[i].direction *= -1; // angle after hitting bottom wall
             }
         }
-        for (int j = 0; j < 2 + 0; j++) // check for collisions between target ball and every other ball, ik its not efficient :)
+        for (int j = 0; j < 16; j++) // check for collisions between target ball and every other ball, ik its not efficient :)
             if (balls[i].isCollidingWith(balls[j]) && j != i) {
-                cout << "ball " << i << " collided with ball " << j << 
                 float distance = sqrtf(pow(balls[i].getPosition().x - balls[j].getPosition().x, 2) + pow(balls[i].getPosition().y - balls[j].getPosition().y, 2));
                 float overlap = (distance - balls[i].getRadius() - balls[j].getRadius()) / 2;
 
@@ -421,7 +426,7 @@ void Table::drawTo(sf::RenderWindow& target)
     target.draw(field);
     for (int i = 0; i < 6; i++)
         target.draw(pockets[i]);
-    for (int i = 0; i < 2 + 0; i++)
+    for (int i = 0; i < 16; i++)
         target.draw(balls[i]), target.draw(balls[i].deleteme);
     cue.drawTo(target);
 }
@@ -436,6 +441,24 @@ bool Table::inBounds(sf::Vector2f p, sf::Vector2f size)
 
 sf::Color UI::scheme[2] = {sf::Color(255, 255, 255, 20), sf::Color(255, 100, 100, 20)};
 sf::Font UI::font;
+
+void UI::Button::update(bool mouseDown, sf::Vector2i mousePosition)
+{
+    if (mousePosition.x > getPosition().x && mousePosition.y > getPosition().y && mousePosition.x < getPosition().x + getSize().x && mousePosition.y < getPosition().y + getSize().y) {
+        setFillColor(scheme[1]);
+        setOutlineColor(scheme[1] + sf::Color(0, 0, 0, 50));
+        if (mouseDown) {
+            clicked = true;
+            setFillColor(scheme[0]);
+            setOutlineColor(scheme[0] + sf::Color(0, 0, 0, 50));
+        }
+    }
+    else {
+        clicked = false;
+        setFillColor(scheme[0]);
+        setOutlineColor(scheme[0] + sf::Color(0, 0, 0, 50));
+    }
+}
 
 UI::SaveButton::SaveButton(sf::Vector2f size) : text("save", font) {
 		setSize(size);
@@ -492,6 +515,13 @@ UI::UI() :
 
 };
 
+void UI::update(bool mouseDown, sf::Vector2i mousePosition, bool turn)
+{
+    save.update(mouseDown, mousePosition);
+    load.update(mouseDown, mousePosition);
+    playerBanner.text.setString("Player: " + std::to_string(int(turn) + 1));
+}
+
 void UI::drawTo(sf::RenderWindow& target)
 {
 	target.draw(save);
@@ -500,4 +530,58 @@ void UI::drawTo(sf::RenderWindow& target)
     target.draw(load.text);
 	target.draw(playerBanner);
     target.draw(playerBanner.text);
+}
+
+Game::Game() : table(sf::Vector2f(400, 200))
+{
+    table.init();
+}
+
+void Game::save()
+{
+    std::fstream saveFile("saves/save.txt", std::ios::out);
+    for (int i = 0; i < 16; i++) {
+        saveFile << table.balls[i].getPosition().x << "," << table.balls[i].getPosition().y << "," << table.balls[i].speed << "," << table.balls[i].direction << "\n";
+    }
+}
+
+void Game::load()
+{
+    std::fstream saveFile("saves/save.txt", std::ios::in);
+    if (saveFile.is_open())
+        for (int i = 0; i < 16; i++) {
+            std::stringstream ball;
+            std::string temp;
+            sf::Vector2f newPos;
+
+            std::getline(saveFile, temp);
+            ball << temp;
+
+            std::getline(ball, temp, ',');
+            newPos.x = std::stof(temp);
+            std::getline(ball, temp, ',');
+            newPos.y = std::stof(temp);
+
+            table.balls[i].setPosition(newPos);
+
+            std::getline(ball, temp, ',');
+            table.balls[i].speed = std::stof(temp);
+            std::getline(ball, temp);
+            table.balls[i].direction = std::stof(temp);
+        }
+}
+
+void Game::update(bool mouseDown, sf::Vector2i mousePosition)
+{
+    table.update(mousePosition);
+    ui.update(mouseDown, mousePosition, turn);
+
+    if (ui.save.clicked) save();
+    if (ui.load.clicked) load();
+}
+
+void Game::drawTo(sf::RenderWindow& target)
+{
+    table.drawTo(target);
+    ui.drawTo(target);
 }
