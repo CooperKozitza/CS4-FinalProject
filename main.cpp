@@ -1,7 +1,6 @@
 #include <SFML/Graphics.hpp>
 #include <SFML/Window.hpp>
-#include <iostream>
-#include <vector>
+#include "src/headers/Game.h"
 #include <math.h>
 #include <string.h>
 #include <sstream>
