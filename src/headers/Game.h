@@ -18,7 +18,7 @@ class Game
 		Player player[2];
             bool turn = false;
         Table table;
-        UI ui;
+        UI ui; 
 
 	public:
         Cue& cue = table.cue;

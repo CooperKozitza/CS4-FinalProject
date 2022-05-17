@@ -5,7 +5,7 @@ Game::Game() : table(sf::Vector2f(800, 600))
 
 }
 
-void Game::update(sf::Vector2i mousePosition) 
+void Game::update(sf::Vector2i mousePosition)
 {
     table.update(mousePosition);
     ui.update(mousePosition);
