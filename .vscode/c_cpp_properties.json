@@ -4,7 +4,10 @@
             "name": "Win32",
             "includePath": [
                 "${default}",
-                "${workspaceFolder}/**"
+                "${workspaceFolder}/**",
+                "C:\\Users\\coope\\Desktop\\Biliards\\src\\include\\SFML",
+                "${workspaceFolder}/src/include",
+                "${workspaceFolder}/src/headers"
             ],
             "defines": [
                 "_DEBUG",
